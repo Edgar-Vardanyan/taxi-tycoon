@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Yerevan Taxi Tycoon</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect fill='%23FFB347' width='32' height='32' rx='4'/></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Bungee&display=swap" rel="stylesheet" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #2D0B5A; }
+    #game-container {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    #game-container canvas {
+      display: block;
+      max-width: 100%;
+      max-height: 100%;
+    }
+    #ad-guard {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 9999;
+      display: none;
+      background: transparent;
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container"></div>
+  <div id="ad-guard" aria-hidden="true"></div>
+  <!-- Load Poki SDK when hosting on Poki; GameSDK works without it locally -->
+  <script src="https://game-cdn.poki.com/scripts/v2/poki-sdk.js" async></script>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
