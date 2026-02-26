@@ -36,6 +36,7 @@ import {
   drawPanelWithShadow,
 } from '../ui/UIConfig.js';
 import { createPopupText, createDeductionPopup } from '../ui/PopupText.js';
+import { isMobile, isPortrait, vibrate } from '../utils/mobile.js';
 import TrafficManager from '../world/TrafficManager.js';
 import { createLayeredBackground } from '../world/LayeredBackground.js';
 import { createRoadLayer, updateRoadScroll } from '../world/roadLayer.js';
@@ -81,9 +82,12 @@ export default class MainScene extends Scene {
     this.idleTimer = null;
     this.rewardCountdownText = null;
     this.sessionStartTime = Date.now();
+    this._isMobile = isMobile();
 
     const roadY = h - h * 0.3;
-    const taxiCy = roadY - 50;
+    const taxiCy = this._isMobile
+      ? h * 0.38
+      : roadY - 50;
 
     this.backgroundContainer = this.add.container(0, 0).setDepth(DEPTH.background);
     this.backgroundContainer.add(createLayeredBackground(this, w, h));
@@ -139,6 +143,8 @@ export default class MainScene extends Scene {
 
     this.scheduleGoldenTaxiEvent();
     this.setupTabBlurMusic();
+    this.setupResizeListener();
+    this.createOrientationOverlay();
 
     this.events.on('flashBackground', this.runFlash, this);
     this.events.on('spendAmd', this.onSpendAmd, this);
@@ -794,9 +800,11 @@ export default class MainScene extends Scene {
 
     taxi.add(gr);
     taxi.defaultX = cx;
+    const hitRadius = this._isMobile ? radius + 24 : radius;
     gr.setInteractive(
-      new Phaser.Geom.Circle(0, 0, radius),
-      Phaser.Geom.Circle.Contains
+      new Phaser.Geom.Circle(0, 0, hitRadius),
+      Phaser.Geom.Circle.Contains,
+      this._isMobile ? { pixelPerfect: false } : undefined
     );
     gr.on('pointerdown', () => this.performDriveAction(taxi));
 
@@ -826,6 +834,12 @@ export default class MainScene extends Scene {
   }
 
   createArcadeButton(x, y, width, height, color, label, callback) {
+    const pad = this._isMobile ? (UIConfig.button.hitAreaPadding ?? 12) : 0;
+    const minH = this._isMobile ? (UIConfig.button.minHeightMobile ?? 48) : 0;
+    const h = minH > 0 && height < minH ? minH : height;
+    const w = width + (pad * 2);
+    const rect = new Phaser.Geom.Rectangle(-w / 2, -h / 2 - pad, w, h + pad * 2);
+
     const container = this.add.container(x, y);
     const g = this.add.graphics();
     const s = UIConfig.panel.buttonShadowOffset ?? 4;
@@ -833,11 +847,11 @@ export default class MainScene extends Scene {
     const bw = UIConfig.panel.borderWidth;
     const shadowAlpha = UIConfig.panel.buttonShadowAlpha ?? 0.45;
     g.fillStyle(0x000000, shadowAlpha);
-    g.fillRoundedRect(-width / 2 + s, -height / 2 + s, width, height, r);
+    g.fillRoundedRect(-width / 2 + s, -h / 2 + s, width, h, r);
     g.fillStyle(color, 1);
-    g.fillRoundedRect(-width / 2, -height / 2, width, height, r);
+    g.fillRoundedRect(-width / 2, -h / 2, width, h, r);
     g.lineStyle(bw, 0x000000, 1);
-    g.strokeRoundedRect(-width / 2, -height / 2, width, height, r);
+    g.strokeRoundedRect(-width / 2, -h / 2, width, h, r);
     container.add(g);
 
     const txt = this.add
@@ -850,14 +864,18 @@ export default class MainScene extends Scene {
     applyTextPop(txt);
     container.add(txt);
 
-    container.setInteractive(
-      new Phaser.Geom.Rectangle(-width / 2, -height / 2, width, height),
-      Phaser.Geom.Rectangle.Contains
-    );
+    container.setInteractive({
+      hitArea: rect,
+      hitAreaCallback: Phaser.Geom.Rectangle.Contains,
+      useHandCursor: true,
+      pixelPerfect: false,
+    });
     container.setScrollFactor(0);
 
+    const scaleDown = UIConfig.button.scaleDown ?? 0.95;
     container.on('pointerdown', () => {
-      container.setScale(UIConfig.button.scaleDown);
+      container.setScale(scaleDown);
+      if (this._isMobile) vibrate(10);
       callback();
     });
     container.on('pointerup', () => container.setScale(1));
@@ -868,40 +886,46 @@ export default class MainScene extends Scene {
 
   createShopButton(w, h) {
     const pad = UIConfig.padding.screen;
+    const btnH = this._isMobile ? 52 : 44;
     const btn = this.createArcadeButton(
       w - pad - 55,
-      h - pad - 22,
+      h - pad - btnH / 2 - 12,
       100,
-      44,
+      btnH,
       UIConfig.colors.primaryButtonBright ?? UIConfig.colors.primaryButton,
       'Shop',
       () => this.scene.launch('Shop')
     );
     this.uiContainer.add(btn);
+    this._shopBtn = btn;
   }
 
   createAchievementsButton(w, h) {
     const pad = UIConfig.padding.screen;
+    const btnH = this._isMobile ? 52 : 44;
     const btn = this.createArcadeButton(
       w - pad - 170,
-      h - pad - 22,
+      h - pad - btnH / 2 - 12,
       100,
-      44,
+      btnH,
       UIConfig.colors.glassPurple ?? 0x4a148c,
       'Achievements',
       () => this.scene.launch('Achievements')
     );
     btn.list[1].setFontSize(12);
     this.uiContainer.add(btn);
+    this._achievementsBtn = btn;
   }
 
   createRewardedButton(w, h) {
     const pad = UIConfig.padding.screen;
+    const btnH = this._isMobile ? 52 : 44;
+    const yOff = this._isMobile ? 68 : 76;
     const btn = this.createArcadeButton(
       w - pad - 55,
-      h - pad - 76,
+      h - pad - yOff - btnH / 2,
       100,
-      44,
+      btnH,
       UIConfig.colors.primaryButtonBright ?? UIConfig.colors.primaryButton,
       '2x 60s',
       () => {
@@ -911,13 +935,11 @@ export default class MainScene extends Scene {
       }
     );
     this.uiContainer.add(btn);
+    this._rewardedBtn = btn;
   }
 
   performDriveAction(taxi) {
-    const frame = this.game.loop.frame;
-    if (this._lastDriveFrame === frame) return;
     if (GameSDK.isAdPlaying) return;
-    this._lastDriveFrame = frame;
 
     AudioManager.unlock();
     AudioManager.playSFX('sfx_click');
@@ -934,11 +956,16 @@ export default class MainScene extends Scene {
     updateBalance(amount);
 
     const p = UIConfig.particles;
-    const count =
-      p.countMin !== undefined && p.countMax !== undefined
-        ? p.countMin +
-          Math.floor(Math.random() * (p.countMax - p.countMin + 1))
-        : p.count;
+    const useMobile = this._isMobile;
+    const count = useMobile
+      ? (p.countMinMobile !== undefined && p.countMaxMobile !== undefined
+          ? p.countMinMobile +
+            Math.floor(Math.random() * (p.countMaxMobile - p.countMinMobile + 1))
+          : (p.countMobile ?? 3))
+      : (p.countMin !== undefined && p.countMax !== undefined
+          ? p.countMin +
+            Math.floor(Math.random() * (p.countMax - p.countMin + 1))
+          : p.count);
     if (this.clickEmitter) {
       this.clickEmitter.explode(count, taxi.x, taxi.y);
     }
@@ -1129,6 +1156,95 @@ export default class MainScene extends Scene {
       }
     };
     document.addEventListener('visibilitychange', this._visibilityHandler);
+  }
+
+  setupResizeListener() {
+    this.scale.on('resize', () => {
+      this.camW = this.cameras.main.width;
+      this.camH = this.cameras.main.height;
+      this.applyMobileLayout();
+      this.updateOrientationOverlay();
+    });
+  }
+
+  applyMobileLayout() {
+    if (!this._isMobile) return;
+    const w = this.camW;
+    const h = this.camH;
+    const pad = UIConfig.padding.screen;
+    if (this.taxi) {
+      this.taxi.x = w / 2;
+      this.taxi.defaultX = w / 2;
+      this.taxi.y = h * 0.38;
+    }
+    if (this.clickEmitter) {
+      this.clickEmitter.setPosition(w / 2, h * 0.38);
+    }
+    const btnH = 52;
+    if (this._shopBtn) {
+      this._shopBtn.setPosition(w - pad - 55, h - pad - btnH / 2 - 12);
+    }
+    if (this._achievementsBtn) {
+      this._achievementsBtn.setPosition(w - pad - 170, h - pad - btnH / 2 - 12);
+    }
+    if (this._rewardedBtn) {
+      this._rewardedBtn.setPosition(w - pad - 55, h - pad - 68 - btnH / 2);
+    }
+  }
+
+  createOrientationOverlay() {
+    const w = this.cameras.main.width;
+    const h = this.cameras.main.height;
+    this.orientationOverlay = this.add.container(0, 0).setDepth(10000);
+    this.orientationOverlay.setScrollFactor(0);
+
+    const bg = this.add
+      .rectangle(w / 2, h / 2, w + 100, h + 100, 0x1a0a2e, 0.98);
+    bg.setScrollFactor(0);
+    this.orientationOverlay.add(bg);
+    bg.setInteractive({ useHandCursor: false });
+    bg.on('pointerdown', () => {});
+
+    const icon = this.add.graphics();
+    const cx = w / 2;
+    const cy = h / 2 - 40;
+    const phoneW = 48;
+    const phoneH = 80;
+    icon.lineStyle(4, 0xffb347, 1);
+    icon.strokeRoundedRect(-phoneW / 2, -phoneH / 2, phoneW, phoneH, 8);
+    icon.setPosition(cx, cy);
+    this.orientationOverlay.add(icon);
+
+    this.tweens.add({
+      targets: icon,
+      angle: 90,
+      duration: 1500,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+
+    const label = this.add
+      .text(w / 2, h / 2 + 30, 'Please rotate to portrait', {
+        ...getTextStyle(),
+        fontSize: 20,
+        color: UIConfig.colors.primaryButtonHex,
+        align: 'center',
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0);
+    this.orientationOverlay.add(label);
+
+    this.updateOrientationOverlay();
+    if (typeof window !== 'undefined') {
+      window.addEventListener('orientationchange', () => this.updateOrientationOverlay());
+      window.addEventListener('resize', () => this.updateOrientationOverlay());
+    }
+  }
+
+  updateOrientationOverlay() {
+    const portrait = isPortrait();
+    this.orientationOverlay.setVisible(this._isMobile && !portrait);
   }
 
   showRebirthToast(granted) {

@@ -8,6 +8,7 @@ import {
   getTitleStyle,
   drawPanelWithShadow,
 } from '../ui/UIConfig.js';
+import { isMobile, vibrate } from '../utils/mobile.js';
 
 const PANEL_WIDTH = 520;
 const CARD_SIZE = 100;
@@ -29,6 +30,7 @@ export default class AchievementScene extends Scene {
 
     const w = this.cameras.main.width;
     const h = this.cameras.main.height;
+    this._isMobile = isMobile();
 
     const startX = w + PANEL_WIDTH / 2 + 40;
     const endX = w - PANEL_WIDTH / 2 - UIConfig.padding.screen;
@@ -56,7 +58,7 @@ export default class AchievementScene extends Scene {
       -panelW / 2 + 44,
       -panelH / 2 + 36,
       80,
-      36,
+      this._isMobile ? 52 : 36,
       0x7b1fa2,
       'Back',
       () => this.close()
@@ -273,6 +275,15 @@ export default class AchievementScene extends Scene {
   }
 
   createArcadeButton(x, y, width, height, color, label, callback) {
+    const pad = this._isMobile ? (UIConfig.button.hitAreaPadding ?? 12) : 0;
+    const minH = this._isMobile ? (UIConfig.button.minHeightMobile ?? 48) : 0;
+    const h = minH > 0 && height < minH ? minH : height;
+    const rect = new Phaser.Geom.Rectangle(
+      -width / 2 - pad,
+      -h / 2 - pad,
+      width + pad * 2,
+      h + pad * 2
+    );
     const container = this.add.container(x, y);
     const s = UIConfig.panel.buttonShadowOffset ?? 4;
     const r = UIConfig.panel.borderRadius;
@@ -280,11 +291,11 @@ export default class AchievementScene extends Scene {
     const shadowAlpha = UIConfig.panel.buttonShadowAlpha ?? 0.45;
     const g = this.add.graphics();
     g.fillStyle(0x000000, shadowAlpha);
-    g.fillRoundedRect(-width / 2 + s, -height / 2 + s, width, height, r);
+    g.fillRoundedRect(-width / 2 + s, -h / 2 + s, width, h, r);
     g.fillStyle(color, 1);
-    g.fillRoundedRect(-width / 2, -height / 2, width, height, r);
+    g.fillRoundedRect(-width / 2, -h / 2, width, h, r);
     g.lineStyle(bw, 0x000000, 1);
-    g.strokeRoundedRect(-width / 2, -height / 2, width, height, r);
+    g.strokeRoundedRect(-width / 2, -h / 2, width, h, r);
     container.add(g);
     const txt = this.add
       .text(0, 0, label, {
@@ -295,13 +306,17 @@ export default class AchievementScene extends Scene {
       .setOrigin(0.5);
     applyTextPop(txt);
     container.add(txt);
-    container.setInteractive(
-      new Phaser.Geom.Rectangle(-width / 2, -height / 2, width, height),
-      Phaser.Geom.Rectangle.Contains
-    );
+    container.setInteractive({
+      hitArea: rect,
+      hitAreaCallback: Phaser.Geom.Rectangle.Contains,
+      useHandCursor: true,
+      pixelPerfect: false,
+    });
     container.setScrollFactor(0);
+    const scaleDown = UIConfig.button.scaleDown ?? 0.95;
     container.on('pointerdown', () => {
-      container.setScale(UIConfig.button.scaleDown);
+      container.setScale(scaleDown);
+      if (this._isMobile) vibrate(10);
       callback();
     });
     container.on('pointerup', () => container.setScale(1));

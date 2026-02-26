@@ -51,6 +51,8 @@ export const UIConfig = {
   },
   button: {
     scaleDown: 0.95,
+    minHeightMobile: 48,
+    hitAreaPadding: 12,
   },
   bar: {
     height: 10,
@@ -74,6 +76,9 @@ export const UIConfig = {
     count: 6,
     countMin: 5,
     countMax: 8,
+    countMobile: 2,
+    countMinMobile: 2,
+    countMaxMobile: 4,
     gravityY: 400,
     speed: { min: 150, max: 300 },
     lifespan: 600,

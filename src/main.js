@@ -24,6 +24,10 @@ if (typeof window !== 'undefined') {
   window.hideAdGuard = hideAdGuard;
 }
 
+function preventContextMenu(e) {
+  e.preventDefault();
+}
+
 const config = {
   type: Phaser.AUTO,
   width: 1280,
@@ -31,14 +35,27 @@ const config = {
   parent: 'game-container',
   backgroundColor: '#2D0B5A',
   scale: {
-    mode: Phaser.Scale.FIT,
+    mode: Phaser.Scale.HEIGHT_CONTROLS_WIDTH,
     autoCenter: Phaser.Scale.CENTER_BOTH,
+  },
+  render: {
+    pixelArt: false,
+    antialias: true,
+    powerPreference: 'high-performance',
   },
   scene: [BootScene, PreloadScene, MainScene, ShopScene, AchievementScene],
 };
 
 function launch() {
-  return new Phaser.Game(config);
+  const game = new Phaser.Game(config);
+  const canvas = game.canvas;
+  if (canvas) {
+    canvas.addEventListener('contextmenu', preventContextMenu);
+  }
+  if (typeof document !== 'undefined') {
+    document.addEventListener('contextmenu', preventContextMenu);
+  }
+  return game;
 }
 
 if (document.fonts && document.fonts.ready) {
