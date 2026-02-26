@@ -26,14 +26,19 @@ import {
 } from '../ui/UIConfig.js';
 import * as AudioManager from '../audio/AudioManager.js';
 import { isMobile, vibrate } from '../utils/mobile.js';
+import { getScaledFontSize } from '../utils/fontScale.js';
 
 const CARD_HEIGHT = 98;
+const CARD_HEIGHT_MOBILE = 110;
 const CARD_PAD = 10;
 const PANEL_WIDTH = 360;
 const PANEL_HEIGHT = 440;
-const BOTTOM_SHEET_RATIO = 0.6;
+const BOTTOM_SHEET_RATIO = 0.5;
 const LOCKED_MULTIPLIER = 2;
 const SLIDE_UP_DURATION = 280;
+const VISIBLE_CARDS_MOBILE = 3.5;
+const CARD_WIDTH_PORTRAIT_RATIO = 0.95;
+const SHOP_BTN_MIN_HEIGHT = 60;
 
 /** Shop overlay. Neubrutalism Arcade – glass cards, per-card progress bar. */
 export default class ShopScene extends Scene {
@@ -47,6 +52,9 @@ export default class ShopScene extends Scene {
     const w = this.cameras.main.width;
     const h = this.cameras.main.height;
     this._isMobile = isMobile();
+    this._isPortrait = w < h;
+    this._gameW = w;
+    this._gameH = h;
     const useBottomSheet = this._isMobile;
 
     const bg = this.add
@@ -55,13 +63,30 @@ export default class ShopScene extends Scene {
       .setScrollFactor(0);
     bg.on('pointerdown', () => this.close());
 
-    const panelW = Math.min(PANEL_WIDTH + 16, w - 32);
+    const panelW = this._isPortrait
+      ? w * CARD_WIDTH_PORTRAIT_RATIO
+      : Math.min(PANEL_WIDTH + 16, w - 32);
     const panelH = useBottomSheet
       ? Math.floor(h * BOTTOM_SHEET_RATIO)
       : PANEL_HEIGHT + 80;
+    this._panelH = this._isPortrait
+      ? Math.floor(h * 0.5)
+      : (useBottomSheet ? Math.floor(h * BOTTOM_SHEET_RATIO) : panelH);
     const panelX = w / 2;
-    const panelYEnd = useBottomSheet ? h - panelH / 2 : h / 2;
-    const panelYStart = useBottomSheet ? h + panelH / 2 + 50 : panelYEnd;
+    const panelYEnd = useBottomSheet ? h - this._panelH / 2 : h / 2;
+    const panelYStart = useBottomSheet ? h + this._panelH / 2 + 50 : panelYEnd;
+
+    const cardH = this._isMobile ? CARD_HEIGHT_MOBILE : CARD_HEIGHT;
+    const listWidth = this._isPortrait
+      ? w * CARD_WIDTH_PORTRAIT_RATIO - 24
+      : (this._isMobile ? w - 24 : Math.min(PANEL_WIDTH, w - 48));
+    const visibleHeight = this._isPortrait
+      ? this._panelH - 120
+      : this._panelH - 100;
+    const scrollHeight = visibleHeight;
+    const contentHeight =
+      SHOP_UPGRADE_IDS.length * (cardH + CARD_PAD) + CARD_PAD;
+    const scrollY = -this._panelH / 2 + 100;
 
     const panelContainer = this.add.container(panelX, panelYStart);
     panelContainer.setScrollFactor(0);
@@ -70,24 +95,26 @@ export default class ShopScene extends Scene {
     drawPanelWithShadow(
       g,
       -panelW / 2,
-      -panelH / 2,
+      -this._panelH / 2,
       panelW,
-      panelH,
+      this._panelH,
       UIConfig.colors.glassPurple,
       UIConfig.colors.glassPurpleAlpha
     );
     g.setInteractive(
-      new Phaser.Geom.Rectangle(-panelW / 2, -panelH / 2, panelW, panelH),
+      new Phaser.Geom.Rectangle(-panelW / 2, -this._panelH / 2, panelW, this._panelH),
       Phaser.Geom.Rectangle.Contains,
       { pixelPerfect: false }
     );
     panelContainer.add(g);
 
-    const titleY = -panelH / 2 + 28;
+    const titleY = -this._panelH / 2 + 28;
+    const dims = { width: w, height: h };
+    const titleFontSize = getScaledFontSize(0.045, 28, dims);
     const title = this.add
       .text(0, titleY, 'Shop', {
         ...getTitleStyle(),
-        fontSize: 28,
+        fontSize: titleFontSize,
       })
       .setOrigin(0.5)
       .setScrollFactor(0)
@@ -108,7 +135,7 @@ export default class ShopScene extends Scene {
     panelContainer.add(closeBtn);
 
     const headerBlocker = this.add
-      .rectangle(0, -panelH / 2 + 42, panelW + 20, 56, 0x000000, 0)
+      .rectangle(0, -this._panelH / 2 + 42, panelW + 20, 56, 0x000000, 0)
       .setInteractive({ useHandCursor: false, pixelPerfect: false })
       .setScrollFactor(0)
       .setDepth(9);
@@ -116,13 +143,13 @@ export default class ShopScene extends Scene {
     headerBlocker.on('pointerdown', () => {});
 
     if (canRebirth()) {
-      const rebirthY = -panelH / 2 + 68;
+      const rebirthY = -this._panelH / 2 + 68;
       const licenses = Math.floor(getTotalEarnings() / 1e6);
       const btn = this.createArcadeButton(
         0,
         rebirthY,
         180,
-        this._isMobile ? 52 : 36,
+        this._isMobile ? SHOP_BTN_MIN_HEIGHT : 36,
         0xffd700,
         `Rebirth (+${licenses} License)`,
         () => this.doRebirth()
@@ -132,12 +159,8 @@ export default class ShopScene extends Scene {
       panelContainer.add(btn);
     }
 
-    const scrollHeight = panelH - 100;
-    const contentHeight =
-      SHOP_UPGRADE_IDS.length * (CARD_HEIGHT + CARD_PAD) + CARD_PAD;
-    const scrollY = -panelH / 2 + 100;
-    const listWidth = Math.min(PANEL_WIDTH, w - 48);
-
+    const listContainer = this.add.container(0, scrollY + CARD_PAD);
+    listContainer.setDepth(0);
     const maskShape = this.make.graphics();
     maskShape.fillRect(
       panelX - listWidth / 2,
@@ -146,21 +169,54 @@ export default class ShopScene extends Scene {
       scrollHeight
     );
     const mask = maskShape.createGeometryMask();
-
-    const list = this.add.container(0, scrollY + CARD_PAD);
+    const list = this.add.container(0, 0);
     list.setMask(mask);
-    list.setDepth(0);
+    listContainer.add(list);
 
     let cardY = 0;
     for (let i = 0; i < SHOP_UPGRADE_IDS.length; i++) {
-      const card = this.createCard(SHOP_UPGRADE_IDS[i], cardY, listWidth - 24);
+      const card = this.createCard(
+        SHOP_UPGRADE_IDS[i],
+        cardY,
+        listWidth - (this._isPortrait ? 16 : (this._isMobile ? 16 : 24)),
+        cardH
+      );
       list.add(card);
-      cardY += CARD_HEIGHT + CARD_PAD;
+      cardY += cardH + CARD_PAD;
     }
 
-    panelContainer.add(list);
+    panelContainer.add(listContainer);
+
+    if (this._isMobile) {
+      const fadeH = 24;
+      const topFade = this.add.graphics();
+      topFade.fillStyle(0x1a0a2e, 0.9);
+      topFade.fillRect(
+        -listWidth / 2 - 10,
+        -this._panelH / 2 + 100 - fadeH,
+        listWidth + 20,
+        fadeH
+      );
+      topFade.setScrollFactor(0);
+      panelContainer.add(topFade);
+      topFade.setDepth(5);
+
+      const bottomFade = this.add.graphics();
+      bottomFade.fillStyle(0x1a0a2e, 0.9);
+      bottomFade.fillRect(
+        -listWidth / 2 - 10,
+        -this._panelH / 2 + 100 + scrollHeight,
+        listWidth + 20,
+        fadeH
+      );
+      bottomFade.setScrollFactor(0);
+      panelContainer.add(bottomFade);
+      bottomFade.setDepth(5);
+    }
+
     this.panelContainer = panelContainer;
     this.list = list;
+    this.listContainer = listContainer;
     this.listStartY = list.y;
     this.scrollOffset = 0;
     this.maxScroll = Math.max(0, contentHeight - scrollHeight);
@@ -171,21 +227,33 @@ export default class ShopScene extends Scene {
         0,
         this.maxScroll
       );
-      list.y = this.listStartY + CARD_PAD - this.scrollOffset;
+      list.y = this.listStartY - this.scrollOffset;
     });
 
+    this._scrollPointerDown = false;
+    this._scrollLastY = 0;
+    this.input.on('pointerdown', (ptr, x, y) => {
+      const inList = y >= panelYEnd + scrollY && y <= panelYEnd + scrollY + scrollHeight;
+      if (inList) {
+        this._scrollPointerDown = true;
+        this._scrollLastY = y;
+      }
+    });
     this.input.on('pointermove', (ptr, x, y) => {
-      if (!ptr.isDown) return;
+      if (!this._scrollPointerDown || !ptr.isDown) return;
+      const dy = y - this._scrollLastY;
+      this._scrollLastY = y;
       this.scrollOffset = Phaser.Math.Clamp(
-        this.scrollOffset - ptr.velocity.y * 0.3,
+        this.scrollOffset - dy,
         0,
         this.maxScroll
       );
-      list.y = this.listStartY + CARD_PAD - this.scrollOffset;
+      list.y = this.listStartY - this.scrollOffset;
     });
+    this.input.on('pointerup', () => { this._scrollPointerDown = false; });
+    this.input.on('pointerout', () => { this._scrollPointerDown = false; });
 
     this.add.existing(panelContainer);
-    this._panelH = panelH;
 
     this.tweens.add({
       targets: panelContainer,
@@ -255,10 +323,18 @@ export default class ShopScene extends Scene {
     return container;
   }
 
-  createCard(id, y, cardW) {
+  createCard(id, y, cardW, cardH) {
     if (cardW == null) cardW = PANEL_WIDTH - 24;
+    if (cardH == null) cardH = CARD_HEIGHT;
     const cfg = UPGRADES[id];
     const card = this.add.container(-cardW / 2, y);
+    const dims = this._gameW != null
+      ? { width: this._gameW, height: this._gameH }
+      : null;
+    const fsTitle = dims ? getScaledFontSize(0.028, 13, dims) : 13;
+    const fsBonus = dims ? getScaledFontSize(0.024, 11, dims) : 11;
+    const fsPrice = dims ? getScaledFontSize(0.026, 12, dims) : 12;
+    const fsLock = dims ? getScaledFontSize(0.032, 14, dims) : 14;
 
     const level = getUpgradeLevel(id);
     const price = getUpgradePrice(id);
@@ -271,14 +347,14 @@ export default class ShopScene extends Scene {
     const r = UIConfig.panel.borderRadius;
     const bw = UIConfig.panel.borderWidth;
     shadowG.fillStyle(0x000000, 1);
-    shadowG.fillRoundedRect(s, s, cardW, CARD_HEIGHT, r);
+    shadowG.fillRoundedRect(s, s, cardW, cardH, r);
     shadowG.fillStyle(UIConfig.colors.glassPurple, 0.35);
-    shadowG.fillRoundedRect(0, 0, cardW, CARD_HEIGHT, r);
+    shadowG.fillRoundedRect(0, 0, cardW, cardH, r);
     shadowG.lineStyle(bw, borderColor, 1);
-    shadowG.strokeRoundedRect(0, 0, cardW, CARD_HEIGHT, r);
+    shadowG.strokeRoundedRect(0, 0, cardW, cardH, r);
     card.add(shadowG);
 
-    const icon = this.createCardIcon(id, 34, CARD_HEIGHT / 2);
+    const icon = this.createCardIcon(id, 34, cardH / 2);
     card.add(icon);
 
     const canAfford = money >= price;
@@ -287,7 +363,7 @@ export default class ShopScene extends Scene {
     const barW = cardW - 140;
     const barH = 5;
     const barX = 52;
-    const barY = CARD_HEIGHT - 28;
+    const barY = this._isMobile ? cardH - 74 : cardH - 28;
     const barBg = this.add.graphics();
     barBg.fillStyle(0x000000, 0.5);
     barBg.fillRoundedRect(barX, barY, barW, barH, 2);
@@ -299,7 +375,7 @@ export default class ShopScene extends Scene {
 
     const titleText = this.add.text(52, 8, cfg.title, {
       ...getTextStyle(),
-      fontSize: 13,
+      fontSize: fsTitle,
       color: UIConfig.colors.textPrimary,
     });
     card.add(titleText);
@@ -308,7 +384,7 @@ export default class ShopScene extends Scene {
     const bonusText = this.getBonusText(id, level);
     const bonus = this.add.text(52, 26, bonusText, {
       ...getTextStyle(),
-      fontSize: 11,
+      fontSize: fsBonus,
       color: UIConfig.colors.textSecondary,
     });
     card.add(bonus);
@@ -316,7 +392,7 @@ export default class ShopScene extends Scene {
 
     const levelTxt = this.add.text(cardW - 8, 8, `Lv.${level}`, {
       ...getTextStyle(),
-      fontSize: 11,
+      fontSize: fsBonus,
       color: UIConfig.colors.textSecondary,
     });
     levelTxt.setOrigin(1, 0);
@@ -324,9 +400,9 @@ export default class ShopScene extends Scene {
     applyTextPop(levelTxt);
 
     if (isLocked) {
-      const lockTxt = this.add.text(cardW / 2, CARD_HEIGHT / 2 - 6, 'Locked', {
+      const lockTxt = this.add.text(cardW / 2, cardH / 2 - 6, 'Locked', {
         ...getTextStyle(),
-        fontSize: 14,
+        fontSize: fsLock,
         color: UIConfig.colors.textSecondary,
       }).setOrigin(0.5);
       card.add(lockTxt);
@@ -335,24 +411,29 @@ export default class ShopScene extends Scene {
       lockIcon.fillRect(-6, -8, 12, 10);
       lockIcon.fillStyle(0x757575, 1);
       lockIcon.fillCircle(0, 4, 5);
-      lockIcon.setPosition(cardW / 2, CARD_HEIGHT / 2 + 10);
+      lockIcon.setPosition(cardW / 2, cardH / 2 + 10);
       card.add(lockIcon);
       card.cardData = { id, isLocked: true };
-      card.setSize(cardW, CARD_HEIGHT);
+      card.setSize(cardW, cardH);
       return card;
     }
 
-    const priceTxt = this.add.text(52, CARD_HEIGHT - 20, `${formatNumber(price)} AMD`, {
-      ...getTextStyle(),
-      fontSize: 12,
-      color: canAfford ? UIConfig.colors.primaryButtonHex : UIConfig.unaffordableHex,
-    });
+    const priceTxt = this.add.text(
+      52,
+      this._isMobile ? cardH - 82 : cardH - 20,
+      `${formatNumber(price)} AMD`,
+      {
+        ...getTextStyle(),
+        fontSize: fsPrice,
+        color: canAfford ? UIConfig.colors.primaryButtonHex : UIConfig.unaffordableHex,
+      }
+    );
     card.add(priceTxt);
     applyTextPop(priceTxt);
 
-    const btnW = this._isMobile ? 44 : 34;
-    const btnH = this._isMobile ? 48 : 20;
-    const btnY = CARD_HEIGHT - 16;
+    const btnW = this._isMobile ? 52 : 34;
+    const btnH = this._isMobile ? SHOP_BTN_MIN_HEIGHT : 20;
+    const btnY = this._isMobile ? cardH - 30 - 8 : cardH - 16;
     const gap = 4;
     const x100 = cardW - 8 - btnW / 2;
     const x10 = x100 - btnW - gap;
@@ -392,7 +473,7 @@ export default class ShopScene extends Scene {
     }
 
     shadowG.setInteractive(
-      new Phaser.Geom.Rectangle(0, 0, cardW, CARD_HEIGHT),
+      new Phaser.Geom.Rectangle(0, 0, cardW, cardH),
       Phaser.Geom.Rectangle.Contains
     );
     shadowG.on('pointerdown', () => {
@@ -421,7 +502,7 @@ export default class ShopScene extends Scene {
       batchBtnH: btnH,
       isLocked: false,
     };
-    card.setSize(cardW, CARD_HEIGHT);
+    card.setSize(cardW, cardH);
     return card;
   }
 

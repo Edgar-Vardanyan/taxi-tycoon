@@ -37,6 +37,7 @@ import {
 } from '../ui/UIConfig.js';
 import { createPopupText, createDeductionPopup } from '../ui/PopupText.js';
 import { isMobile, isPortrait, vibrate } from '../utils/mobile.js';
+import { getScaledFontSize } from '../utils/fontScale.js';
 import TrafficManager from '../world/TrafficManager.js';
 import { createLayeredBackground } from '../world/LayeredBackground.js';
 import { createRoadLayer, updateRoadScroll } from '../world/roadLayer.js';
@@ -55,6 +56,10 @@ import {
 const DEPTH = { background: -20, gameWorld: 0, ui: 100 };
 const CAMERA_SWAY_AMOUNT = 2.5;
 const CAMERA_SWAY_DURATION = 4000;
+const PORTRAIT_TOP = 0.15;
+const PORTRAIT_MID = 0.35;
+const PORTRAIT_BOTTOM = 0.5;
+const TAXI_VISUAL_RADIUS = 64;
 const TIER_OVERLAY_COLORS = [
   0x2d0b5a,
   0x4caf50,
@@ -83,14 +88,19 @@ export default class MainScene extends Scene {
     this.rewardCountdownText = null;
     this.sessionStartTime = Date.now();
     this._isMobile = isMobile();
+    this._isPortrait = isPortrait();
 
     const roadY = h - h * 0.3;
-    const taxiCy = this._isMobile
-      ? h * 0.38
-      : roadY - 50;
+    const taxiCy = this._isPortrait
+      ? h * (PORTRAIT_TOP + PORTRAIT_MID / 2)
+      : (this._isMobile ? h * 0.38 : roadY - 50);
 
     this.backgroundContainer = this.add.container(0, 0).setDepth(DEPTH.background);
     this.backgroundContainer.add(createLayeredBackground(this, w, h));
+    if (this._isMobile && this.backgroundContainer.list.length >= 3) {
+      this.backgroundContainer.list[1].setVisible(false);
+      this.backgroundContainer.list[2].setVisible(false);
+    }
     this.tierOverlay = this.add.rectangle(0, 0, w, h, 0x000000, 0);
     this.tierOverlay.setOrigin(0, 0);
     this.backgroundContainer.add(this.tierOverlay);
@@ -104,8 +114,9 @@ export default class MainScene extends Scene {
       w,
       h
     );
-    this.trafficManager.start();
+    if (!this._isMobile) this.trafficManager.start();
     this.cloudContainer = createCloudManager(this, w, h);
+    this.cloudContainer.setVisible(!this._isMobile);
     this.gameWorldContainer.add(this.cloudContainer);
     this.createTaxi(cx, taxiCy);
     this.gameWorldContainer.add(this.taxi);
@@ -156,6 +167,18 @@ export default class MainScene extends Scene {
         this.checkAchievements();
       });
     }
+
+    this.applyMobileLayout();
+    const cw = this.camW;
+    const ch = this.camH;
+    const safeW = cw >= 200 && cw <= 600 && cw < ch;
+    if (this.taxi && !safeW) this.taxi.setScale(1);
+    this.time.delayedCall(0, () => {
+      this.camW = this.cameras.main.width;
+      this.camH = this.cameras.main.height;
+      this._isPortrait = isPortrait();
+      this.applyMobileLayout();
+    });
   }
 
   startCameraSway() {
@@ -361,13 +384,22 @@ export default class MainScene extends Scene {
 
   createHUD(w, h) {
     const pad = UIConfig.padding.hud;
-    const pillW = 300;
-    const pillH = 56;
+    const portrait = this._isPortrait;
+    const dims = { width: w, height: h };
+    const topZoneH = portrait ? h * PORTRAIT_TOP : pad + 80;
+    const fs = getScaledFontSize(0.045, 26, dims);
+    const fsSmall = getScaledFontSize(0.032, 16, dims);
+
+    const pillW = portrait ? Math.min(w * 0.9, 400) : 300;
+    const pillH = portrait ? 48 : 56;
+    const topY = portrait ? h * 0.02 : pad + 4;
+    const leftX = portrait ? w / 2 - pillW / 2 : pad + 4;
+
     const g = this.add.graphics().setScrollFactor(0);
     drawPanelWithShadow(
       g,
-      pad + 4,
-      pad + 4,
+      leftX,
+      topY,
       pillW,
       pillH,
       UIConfig.colors.glassPurple,
@@ -375,9 +407,9 @@ export default class MainScene extends Scene {
     );
     this.uiContainer.add(g);
 
-    const coinSize = 28;
-    const coinX = pad + 24 + coinSize / 2;
-    const coinY = pad + pillH / 2 + 4;
+    const coinSize = portrait ? 22 : 28;
+    const coinX = leftX + 20 + coinSize / 2;
+    const coinY = topY + pillH / 2;
     const coinContainer = this.add.container(coinX, coinY);
     const coin = this.add.graphics();
     coin.fillStyle(0xffb347, 1);
@@ -397,24 +429,23 @@ export default class MainScene extends Scene {
       ease: 'Linear',
     });
 
-    const balanceFontSize = UIConfig.font.balanceSize;
     this.balanceText = this.add
-      .text(pad + 58, pad + 18, `Balance: ${formatNumber(getMoney())} AMD`, {
+      .text(leftX + 50, topY + (portrait ? 8 : 18), `Balance: ${formatNumber(getMoney())} AMD`, {
         ...getTextStyle(),
-        fontSize: balanceFontSize,
+        fontSize: fs,
         color: UIConfig.colors.primaryButtonHex,
       })
       .setScrollFactor(0)
       .setOrigin(0, 0);
     applyTextPop(this.balanceText);
     this.uiContainer.add(this.balanceText);
-    this.balancePillRight = pad + 4 + pillW - 12;
-    this.balanceTextLeft = pad + 58;
+    this.balancePillRight = leftX + pillW - 12;
+    this.balanceTextLeft = leftX + 50;
 
     this.incomeText = this.add
-      .text(pad + 58, pad + 42, `${formatNumber(calculateIdleIncome())} AMD/sec`, {
+      .text(leftX + 50, topY + (portrait ? 28 : 42), `${formatNumber(calculateIdleIncome())} AMD/sec`, {
         ...getTextStyle(),
-        fontSize: UIConfig.font.incomeSize,
+        fontSize: fsSmall,
         color: UIConfig.colors.textSecondary,
       })
       .setScrollFactor(0)
@@ -425,9 +456,9 @@ export default class MainScene extends Scene {
     const licenses = getGoldenLicenses();
     if (licenses > 0) {
       this.prestigeBadge = this.add
-        .text(pad + 4 + pillW + 14, pad + pillH / 2 + 4, `★ ${licenses}`, {
+        .text(leftX + pillW + 10, topY + pillH / 2, `★ ${licenses}`, {
           ...getTextStyle(),
-          fontSize: 14,
+          fontSize: fsSmall,
           color: 0xffd700,
         })
         .setOrigin(0, 0.5)
@@ -554,7 +585,8 @@ export default class MainScene extends Scene {
 
   createMilestoneBar(w, h) {
     const pad = UIConfig.padding.hud;
-    const barY = pad + 88;
+    const portrait = this._isPortrait;
+    const barY = portrait ? h * PORTRAIT_TOP - 8 : pad + 88;
     const barW = Math.min(300, w - pad * 2 - 20);
     const barH = UIConfig.bar.height;
     const prev = getPrevMilestoneTarget();
@@ -580,10 +612,11 @@ export default class MainScene extends Scene {
       pad: pad + 7,
       barH: barH - 6,
     };
+    const fsLabel = getScaledFontSize(0.028, 12, { width: w, height: h });
     this.milestoneBar.label = this.add
       .text(pad, barY - 2, `Next: ${formatNumber(next)} AMD`, {
         ...getTextStyle(),
-        fontSize: 11,
+        fontSize: fsLabel,
         color: UIConfig.colors.textSecondary,
       })
       .setScrollFactor(0);
@@ -595,7 +628,7 @@ export default class MainScene extends Scene {
     this.milestoneBar.counterText = this.add
       .text(pad + barW + 12, barY + barH / 2 - 2, `Milestone: ${idx + 1}/${totalMilestones}`, {
         ...getTextStyle(),
-        fontSize: 12,
+        fontSize: fsLabel,
         color: UIConfig.colors.textSecondary,
       })
       .setOrigin(0, 0.5)
@@ -607,7 +640,7 @@ export default class MainScene extends Scene {
   createStatsPanel(w, h) {
     const pad = UIConfig.padding.hud;
     const left = pad;
-    const top = pad + 170;
+    const top = this._isPortrait ? h * PORTRAIT_TOP + 20 : pad + 170;
     const panelW = 160;
     const panelH = 100;
     const g = this.add.graphics().setScrollFactor(0);
@@ -621,28 +654,35 @@ export default class MainScene extends Scene {
       UIConfig.colors.glassPurpleAlpha
     );
     this.uiContainer.add(g);
+    g.setVisible(!this._isPortrait);
+    this.statsPanelBg = g;
 
+    const fs = getScaledFontSize(0.028, 12, { width: w, height: h });
     const style = {
       ...getTextStyle(),
-      fontSize: 12,
+      fontSize: fs,
       color: UIConfig.colors.textSecondary,
     };
     this.statsClicksText = this.add
       .text(left + 10, top + 12, `Clicks: ${formatNumber(getTotalClicks())}`, style)
       .setScrollFactor(0);
+    this.statsClicksText.setVisible(!this._isPortrait);
     this.uiContainer.add(this.statsClicksText);
     this.statsUpgradesText = this.add
       .text(left + 10, top + 32, `Upgrades: ${getLevelsBought()}`, style)
       .setScrollFactor(0);
+    this.statsUpgradesText.setVisible(!this._isPortrait);
     this.uiContainer.add(this.statsUpgradesText);
     this.statsEarningsText = this.add
       .text(left + 10, top + 52, `Lifetime: ${formatNumber(getTotalEarnings())} AMD`, style)
       .setScrollFactor(0);
+    this.statsEarningsText.setVisible(!this._isPortrait);
     this.uiContainer.add(this.statsEarningsText);
     const bonusPct = getUnlockedCount() * 2;
     this.statsAchievementText = this.add
       .text(left + 10, top + 72, `Achievement: +${bonusPct}%`, style)
       .setScrollFactor(0);
+    this.statsAchievementText.setVisible(!this._isPortrait);
     this.uiContainer.add(this.statsAchievementText);
   }
 
@@ -742,6 +782,8 @@ export default class MainScene extends Scene {
     g.fillStyle(0x000000, 0.5);
     g.fillRect(0, tickerY, w, tickerH);
     this.uiContainer.add(g);
+    g.setVisible(!this._isPortrait);
+    this.tickerBar = g;
 
     const fullText = headlines.join('    •    ');
     this.tickerText = this.add
@@ -752,6 +794,7 @@ export default class MainScene extends Scene {
       })
       .setOrigin(0, 0.5)
       .setScrollFactor(0);
+    this.tickerText.setVisible(!this._isPortrait);
     this.uiContainer.add(this.tickerText);
     this.tickerWidth = this.tickerText.width;
     this.tickerSpeed = 55;
@@ -777,7 +820,7 @@ export default class MainScene extends Scene {
   }
 
   createTaxi(cx, cy) {
-    const radius = 64;
+    const radius = TAXI_VISUAL_RADIUS;
     const taxi = this.add.container(cx, cy);
     const gr = this.add.graphics();
 
@@ -800,6 +843,7 @@ export default class MainScene extends Scene {
 
     taxi.add(gr);
     taxi.defaultX = cx;
+
     const hitRadius = this._isMobile ? radius + 24 : radius;
     gr.setInteractive(
       new Phaser.Geom.Circle(0, 0, hitRadius),
@@ -886,10 +930,13 @@ export default class MainScene extends Scene {
 
   createShopButton(w, h) {
     const pad = UIConfig.padding.screen;
+    const portrait = this._isPortrait;
     const btnH = this._isMobile ? 52 : 44;
+    const y = portrait ? h * (1 - PORTRAIT_BOTTOM / 2) - 30 : h - pad - btnH / 2 - 12;
+    const x = portrait ? w / 2 - 110 : w - pad - 55;
     const btn = this.createArcadeButton(
-      w - pad - 55,
-      h - pad - btnH / 2 - 12,
+      x,
+      y,
       100,
       btnH,
       UIConfig.colors.primaryButtonBright ?? UIConfig.colors.primaryButton,
@@ -902,10 +949,13 @@ export default class MainScene extends Scene {
 
   createAchievementsButton(w, h) {
     const pad = UIConfig.padding.screen;
+    const portrait = this._isPortrait;
     const btnH = this._isMobile ? 52 : 44;
+    const y = portrait ? h * (1 - PORTRAIT_BOTTOM / 2) - 30 : h - pad - btnH / 2 - 12;
+    const x = portrait ? w / 2 : w - pad - 170;
     const btn = this.createArcadeButton(
-      w - pad - 170,
-      h - pad - btnH / 2 - 12,
+      x,
+      y,
       100,
       btnH,
       UIConfig.colors.glassPurple ?? 0x4a148c,
@@ -919,11 +969,14 @@ export default class MainScene extends Scene {
 
   createRewardedButton(w, h) {
     const pad = UIConfig.padding.screen;
+    const portrait = this._isPortrait;
     const btnH = this._isMobile ? 52 : 44;
-    const yOff = this._isMobile ? 68 : 76;
+    const yOff = portrait ? 0 : 68;
+    const y = portrait ? h * (1 - PORTRAIT_BOTTOM / 2) + 25 : h - pad - 68 - btnH / 2;
+    const x = portrait ? w / 2 + 110 : w - pad - 55;
     const btn = this.createArcadeButton(
-      w - pad - 55,
-      h - pad - yOff - btnH / 2,
+      x,
+      y,
       100,
       btnH,
       UIConfig.colors.primaryButtonBright ?? UIConfig.colors.primaryButton,
@@ -1162,20 +1215,82 @@ export default class MainScene extends Scene {
     this.scale.on('resize', () => {
       this.camW = this.cameras.main.width;
       this.camH = this.cameras.main.height;
+      this._isPortrait = isPortrait();
       this.applyMobileLayout();
       this.updateOrientationOverlay();
     });
   }
 
   applyMobileLayout() {
-    if (!this._isMobile) return;
     const w = this.camW;
     const h = this.camH;
     const pad = UIConfig.padding.screen;
+
+    if (this._isPortrait) {
+      const actionMidY = h * (PORTRAIT_TOP + PORTRAIT_MID / 2);
+      if (this.taxi) {
+        this.taxi.x = w / 2;
+        this.taxi.defaultX = w / 2;
+        this.taxi.y = actionMidY;
+        const gamePortrait = w < h;
+        const safeMobileWidth = w >= 200 && w <= 600;
+        const canApplyPortraitScale = gamePortrait && safeMobileWidth;
+        if (canApplyPortraitScale) {
+          const targetWidth = w * 0.8;
+          const taxiScale = targetWidth / (TAXI_VISUAL_RADIUS * 2);
+          this.taxi.setScale(taxiScale);
+        } else {
+          this.taxi.setScale(1);
+        }
+      }
+      if (this.clickEmitter) {
+        this.clickEmitter.setPosition(w / 2, actionMidY);
+      }
+      const btnH = 52;
+      const bottomZoneCenterY = h * (PORTRAIT_TOP + PORTRAIT_MID + PORTRAIT_BOTTOM / 2);
+      if (this._shopBtn) {
+        this._shopBtn.setPosition(w / 2 - 110, bottomZoneCenterY - 30);
+      }
+      if (this._achievementsBtn) {
+        this._achievementsBtn.setPosition(w / 2, bottomZoneCenterY - 30);
+      }
+      if (this._rewardedBtn) {
+        this._rewardedBtn.setPosition(w / 2 + 110, bottomZoneCenterY + 25);
+      }
+      if (this.milestoneBar && this.milestoneBar.label) {
+        const barY = h * PORTRAIT_TOP - 8;
+        this.milestoneBar.barY = barY + 7;
+        this.milestoneBar.label.setY(barY - 2);
+        this.milestoneBar.counterText.setY(barY + 4);
+      }
+      if (this.statsClicksText) {
+        this.statsClicksText.setVisible(false);
+        this.statsUpgradesText.setVisible(false);
+        this.statsEarningsText.setVisible(false);
+        this.statsAchievementText.setVisible(false);
+      }
+      if (this.statsPanelBg) this.statsPanelBg.setVisible(false);
+      if (this.tickerText) this.tickerText.setVisible(false);
+      if (this.tickerBar) this.tickerBar.setVisible(false);
+      this.refreshHUD();
+      return;
+    }
+
+    if (!this._isMobile) return;
+    if (this.statsClicksText) {
+      this.statsClicksText.setVisible(true);
+      this.statsUpgradesText.setVisible(true);
+      this.statsEarningsText.setVisible(true);
+      this.statsAchievementText.setVisible(true);
+    }
+    if (this.statsPanelBg) this.statsPanelBg.setVisible(true);
+    if (this.tickerText) this.tickerText.setVisible(true);
+    if (this.tickerBar) this.tickerBar.setVisible(true);
     if (this.taxi) {
       this.taxi.x = w / 2;
       this.taxi.defaultX = w / 2;
       this.taxi.y = h * 0.38;
+      this.taxi.setScale(1);
     }
     if (this.clickEmitter) {
       this.clickEmitter.setPosition(w / 2, h * 0.38);

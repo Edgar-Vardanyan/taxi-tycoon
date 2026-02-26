@@ -51,7 +51,7 @@ export const UIConfig = {
   },
   button: {
     scaleDown: 0.95,
-    minHeightMobile: 48,
+    minHeightMobile: 60,
     hitAreaPadding: 12,
   },
   bar: {
