@@ -1,6 +1,6 @@
 # Yerevan Taxi Tycoon
 
-Phaser 3 clicker game. Click the taxi to earn AMD; buy upgrades in the Shop. Built per `GAME_SPEC.md`.
+Phaser 3 clicker game. Click the taxi to earn AMD; buy upgrades in the Shop.
 
 ## Run
 
