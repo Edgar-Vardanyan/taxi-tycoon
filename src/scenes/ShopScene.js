@@ -80,7 +80,8 @@ export default class ShopScene extends Scene {
         fontSize: 28,
       })
       .setOrigin(0.5)
-      .setScrollFactor(0);
+      .setScrollFactor(0)
+      .setDepth(10);
     applyTextPop(title);
 
     const closeBtn = this.createArcadeButton(
@@ -93,6 +94,21 @@ export default class ShopScene extends Scene {
       () => this.close()
     );
     closeBtn.list[1].setFontSize(22);
+    closeBtn.setDepth(10);
+
+    const headerBlocker = this.add
+      .rectangle(
+        panelX,
+        panelY - PANEL_HEIGHT / 2 - 20,
+        PANEL_WIDTH + 20,
+        56,
+        0x000000,
+        0
+      )
+      .setInteractive({ useHandCursor: false })
+      .setScrollFactor(0)
+      .setDepth(9);
+    headerBlocker.on('pointerdown', () => {});
 
     if (canRebirth()) {
       this.createRebirthButton(panelX, panelY, panelW, panelH);
@@ -114,6 +130,7 @@ export default class ShopScene extends Scene {
 
     const list = this.add.container(panelX, scrollY + CARD_PAD);
     list.setMask(mask);
+    list.setDepth(0);
 
     let cardY = 0;
     for (let i = 0; i < SHOP_UPGRADE_IDS.length; i++) {
@@ -151,6 +168,7 @@ export default class ShopScene extends Scene {
     );
     btn.list[1].setFontSize(11);
     this.add.existing(btn);
+    btn.setDepth(10);
   }
 
   doRebirth() {

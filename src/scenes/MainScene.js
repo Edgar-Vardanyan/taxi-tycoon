@@ -625,10 +625,10 @@ export default class MainScene extends Scene {
       .text(left + 10, top + 12, `Clicks: ${formatNumber(getTotalClicks())}`, style)
       .setScrollFactor(0);
     this.uiContainer.add(this.statsClicksText);
-    this.statsDriversText = this.add
-      .text(left + 10, top + 32, `Drivers: ${getUpgradeLevel('drivers')}`, style)
+    this.statsUpgradesText = this.add
+      .text(left + 10, top + 32, `Upgrades: ${getLevelsBought()}`, style)
       .setScrollFactor(0);
-    this.uiContainer.add(this.statsDriversText);
+    this.uiContainer.add(this.statsUpgradesText);
     this.statsEarningsText = this.add
       .text(left + 10, top + 52, `Lifetime: ${formatNumber(getTotalEarnings())} AMD`, style)
       .setScrollFactor(0);
@@ -1187,7 +1187,7 @@ export default class MainScene extends Scene {
 
     if (this.statsClicksText) {
       this.statsClicksText.setText(`Clicks: ${formatNumber(getTotalClicks())}`);
-      this.statsDriversText.setText(`Drivers: ${getUpgradeLevel('drivers')}`);
+      this.statsUpgradesText.setText(`Upgrades: ${getLevelsBought()}`);
       this.statsEarningsText.setText(
         `Lifetime: ${formatNumber(getTotalEarnings())} AMD`
       );
