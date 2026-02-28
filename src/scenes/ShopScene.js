@@ -131,8 +131,8 @@ export default class ShopScene extends Scene {
       () => this.close()
     );
     closeBtn.list[1].setFontSize(24);
-    closeBtn.setDepth(10);
-    panelContainer.add(closeBtn);
+    closeBtn.setDepth(100);
+    closeBtn.setScrollFactor(0);
 
     const headerBlocker = this.add
       .rectangle(0, -this._panelH / 2 + 42, panelW + 20, 56, 0x000000, 0)
@@ -141,6 +141,8 @@ export default class ShopScene extends Scene {
       .setDepth(9);
     panelContainer.add(headerBlocker);
     headerBlocker.on('pointerdown', () => {});
+
+    panelContainer.add(closeBtn);
 
     if (canRebirth()) {
       const rebirthY = -this._panelH / 2 + 68;

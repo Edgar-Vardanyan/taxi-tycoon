@@ -169,10 +169,6 @@ export default class MainScene extends Scene {
     }
 
     this.applyMobileLayout();
-    const cw = this.camW;
-    const ch = this.camH;
-    const safeW = cw >= 200 && cw <= 600 && cw < ch;
-    if (this.taxi && !safeW) this.taxi.setScale(1);
     this.time.delayedCall(0, () => {
       this.camW = this.cameras.main.width;
       this.camH = this.cameras.main.height;
@@ -459,14 +455,14 @@ export default class MainScene extends Scene {
         .text(leftX + pillW + 10, topY + pillH / 2, `★ ${licenses}`, {
           ...getTextStyle(),
           fontSize: fsSmall,
-          color: 0xffd700,
+          color: '#FFD700',
         })
         .setOrigin(0, 0.5)
         .setScrollFactor(0);
       this.uiContainer.add(this.prestigeBadge);
     }
 
-    this.createSoundControls(w, pad);
+    this.createSoundControls(w, h, pad);
   }
 
   createSavingIcon() {
@@ -498,9 +494,10 @@ export default class MainScene extends Scene {
     });
   }
 
-  createSoundControls(w, pad) {
+  createSoundControls(w, h, pad) {
+    const portrait = this._isPortrait;
     const padRight = w - pad;
-    const cy = pad + 28;
+    const cy = portrait ? Math.floor(h * PORTRAIT_TOP + 26) : pad + 28;
     const trackW = 72;
     const trackH = 10;
     const btnW = 72;
@@ -843,6 +840,7 @@ export default class MainScene extends Scene {
 
     taxi.add(gr);
     taxi.defaultX = cx;
+    taxi.baseScale = 1;
 
     const hitRadius = this._isMobile ? radius + 24 : radius;
     gr.setInteractive(
@@ -1026,14 +1024,18 @@ export default class MainScene extends Scene {
     createPopupText(this, taxi.x, taxi.y - 15, amount);
 
     const fb = UIConfig.clickFeedback || {};
-    taxi.setScale(fb.squashScaleX ?? 1.2, fb.squashScaleY ?? 0.8);
+    const baseScale = taxi.baseScale ?? 1;
+    taxi.setScale(
+      baseScale * (fb.squashScaleX ?? 1.2),
+      baseScale * (fb.squashScaleY ?? 0.8)
+    );
     const rotDelta = (Math.random() * 2 - 1) * (fb.rotationRange ?? 5);
     const baseAngle = taxi.angle;
     taxi.angle = baseAngle + rotDelta;
     this.tweens.add({
       targets: taxi,
-      scaleX: 1,
-      scaleY: 1,
+      scaleX: baseScale,
+      scaleY: baseScale,
       angle: baseAngle,
       duration: fb.recoverDuration ?? 200,
       ease: fb.recoverEase ?? 'Expo.easeOut',
@@ -1233,15 +1235,17 @@ export default class MainScene extends Scene {
         this.taxi.defaultX = w / 2;
         this.taxi.y = actionMidY;
         const gamePortrait = w < h;
-        const safeMobileWidth = w >= 200 && w <= 600;
-        const canApplyPortraitScale = gamePortrait && safeMobileWidth;
-        if (canApplyPortraitScale) {
+        const narrowMobile = gamePortrait && w <= 600;
+        if (narrowMobile) {
+          this.taxi.baseScale = 1;
+        } else if (gamePortrait && w > 0) {
           const targetWidth = w * 0.8;
-          const taxiScale = targetWidth / (TAXI_VISUAL_RADIUS * 2);
-          this.taxi.setScale(taxiScale);
+          const rawScale = targetWidth / (TAXI_VISUAL_RADIUS * 2);
+          this.taxi.baseScale = Phaser.Math.Clamp(rawScale, 1, 1.15);
         } else {
-          this.taxi.setScale(1);
+          this.taxi.baseScale = 1;
         }
+        this.taxi.setScale(this.taxi.baseScale);
       }
       if (this.clickEmitter) {
         this.clickEmitter.setPosition(w / 2, actionMidY);
@@ -1290,7 +1294,8 @@ export default class MainScene extends Scene {
       this.taxi.x = w / 2;
       this.taxi.defaultX = w / 2;
       this.taxi.y = h * 0.38;
-      this.taxi.setScale(1);
+      this.taxi.baseScale = 1;
+      this.taxi.setScale(this.taxi.baseScale);
     }
     if (this.clickEmitter) {
       this.clickEmitter.setPosition(w / 2, h * 0.38);
