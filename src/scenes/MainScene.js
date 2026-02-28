@@ -256,6 +256,7 @@ export default class MainScene extends Scene {
   }
 
   createSpaceHint(w, h) {
+    if (this._isMobile) return;
     const y = h - 52;
     this.spaceHintText = this.add
       .text(w / 2, y, '[SPACE] to Drive', {
@@ -350,14 +351,19 @@ export default class MainScene extends Scene {
     const seconds = getOfflineSeconds();
     if (earned <= 0 || seconds < 10) return;
     updateBalance(earned);
+    const mobilePortrait = this._isMobile && this._isPortrait;
+    const msgY = mobilePortrait
+      ? Math.floor(this.camH * PORTRAIT_TOP + 96)
+      : 120;
+    const wrapW = mobilePortrait ? this.camW - 36 : this.camW - 80;
     const msg =
       'While you were stuck in Yerevan traffic (away), your drivers earned '
       + `you ${formatNumber(earned)} AMD!`;
     const t = this.add
-      .text(this.camW / 2, 120, msg, {
+      .text(this.camW / 2, msgY, msg, {
         ...getTextStyle({ fontSize: 16 }),
         color: UIConfig.colors.primaryButtonHex,
-        wordWrap: { width: this.camW - 80 },
+        wordWrap: { width: wrapW },
         align: 'center',
       })
       .setOrigin(0.5)
@@ -439,7 +445,7 @@ export default class MainScene extends Scene {
       .setOrigin(0, 0);
     applyTextPop(this.balanceText);
     this.uiContainer.add(this.balanceText);
-    this.balancePillRight = leftX + pillW - 12;
+    this.balancePillRight = leftX + pillW - (portrait ? 74 : 12);
     this.balanceTextLeft = leftX + 50;
 
     this.incomeText = this.add
@@ -455,8 +461,8 @@ export default class MainScene extends Scene {
 
     const licenses = getGoldenLicenses();
     if (licenses > 0) {
-      const badgeX = portrait ? leftX - 8 : leftX + pillW + 10;
-      const badgeOriginX = 1;
+      const badgeX = portrait ? leftX + pillW - 10 : leftX + pillW + 10;
+      const badgeOriginX = portrait ? 1 : 0;
       this.prestigeBadge = this.add
         .text(badgeX, topY + pillH / 2, `★ ${licenses}`, {
           ...getTextStyle(),
@@ -503,7 +509,39 @@ export default class MainScene extends Scene {
   createSoundControls(w, h, pad) {
     const portrait = this._isPortrait;
     const padRight = w - pad;
-    const cy = portrait ? Math.floor(h * PORTRAIT_TOP + 58) : pad + 28;
+    const cy = portrait
+      ? Math.max(
+          Math.floor(h * 0.02) + 68 + 20,
+          Math.floor(h * PORTRAIT_TOP) + 72
+        )
+      : pad + 28;
+    const updateLabel = (txt) => {
+      txt.setText(AudioManager.isMuted() ? 'Unmute' : 'Mute');
+    };
+
+    if (this._isMobile) {
+      this._volumeDragging = false;
+      this._volumeSliderUpdate = null;
+      const muteX = padRight - 34;
+      const btn = this.createArcadeButton(
+        muteX,
+        cy,
+        56,
+        30,
+        UIConfig.colors.glassPurple ?? 0x4a148c,
+        AudioManager.isMuted() ? 'Unmute' : 'Mute',
+        () => {
+          AudioManager.toggleMute();
+          updateLabel(btn.list[1]);
+        }
+      );
+      btn.list[1].setFontSize(9);
+      this.uiContainer.add(btn);
+      this._soundControls = [btn];
+      this.bringSoundControlsToTop();
+      return;
+    }
+
     const trackW = 72;
     const trackH = 10;
     const btnW = 72;
@@ -567,9 +605,6 @@ export default class MainScene extends Scene {
     this._volumeSliderUpdate = updateSlider;
 
     const muteX = padRight - 44;
-    const updateLabel = (txt) => {
-      txt.setText(AudioManager.isMuted() ? 'Unmute' : 'Mute');
-    };
     const btn = this.createArcadeButton(
       muteX,
       cy,
@@ -599,9 +634,12 @@ export default class MainScene extends Scene {
   createMilestoneBar(w, h) {
     const pad = UIConfig.padding.hud;
     const portrait = this._isPortrait;
+    const mobilePortrait = portrait && this._isMobile;
     const barY = portrait ? h * PORTRAIT_TOP - 8 : pad + 88;
-    const barW = Math.min(300, w - pad * 2 - 20);
-    const barH = UIConfig.bar.height;
+    const barW = mobilePortrait
+      ? Math.min(220, Math.floor(w * 0.58))
+      : Math.min(300, w - pad * 2 - 20);
+    const barH = mobilePortrait ? Math.max(6, UIConfig.bar.height - 2) : UIConfig.bar.height;
     const prev = getPrevMilestoneTarget();
     const next = getNextMilestoneTarget();
     const total = getTotalEarnings();
@@ -625,7 +663,9 @@ export default class MainScene extends Scene {
       pad: pad + 7,
       barH: barH - 6,
     };
-    const fsLabel = getScaledFontSize(0.028, 12, { width: w, height: h });
+    const fsLabel = mobilePortrait
+      ? getScaledFontSize(0.022, 10, { width: w, height: h })
+      : getScaledFontSize(0.028, 12, { width: w, height: h });
     this.milestoneBar.label = this.add
       .text(pad, barY - 2, `Next: ${formatNumber(next)} AMD`, {
         ...getTextStyle(),
@@ -648,6 +688,7 @@ export default class MainScene extends Scene {
       .setScrollFactor(0);
     applyTextPop(this.milestoneBar.counterText);
     this.uiContainer.add(this.milestoneBar.counterText);
+    if (mobilePortrait) this.milestoneBar.counterText.setVisible(false);
   }
 
   createStatsPanel(w, h) {
@@ -1268,14 +1309,23 @@ export default class MainScene extends Scene {
       }
       const btnH = 52;
       const bottomZoneCenterY = h * (PORTRAIT_TOP + PORTRAIT_MID + PORTRAIT_BOTTOM / 2);
+      const isNarrow = w < 340;
+      const gap = Math.min(110, Math.floor(w / 2 - 58));
+      const sideOffset = isNarrow ? 56 : gap;
       if (this._shopBtn) {
-        this._shopBtn.setPosition(w / 2 - 110, bottomZoneCenterY - 30);
+        this._shopBtn.setPosition(w / 2 - sideOffset, bottomZoneCenterY - 30);
       }
       if (this._achievementsBtn) {
-        this._achievementsBtn.setPosition(w / 2, bottomZoneCenterY - 30);
+        this._achievementsBtn.setPosition(
+          isNarrow ? w / 2 + sideOffset : w / 2,
+          bottomZoneCenterY - 30
+        );
       }
       if (this._rewardedBtn) {
-        this._rewardedBtn.setPosition(w / 2 + 110, bottomZoneCenterY + 25);
+        this._rewardedBtn.setPosition(
+          isNarrow ? w / 2 : w / 2 + sideOffset,
+          bottomZoneCenterY + 25
+        );
       }
       if (this.milestoneBar && this.milestoneBar.label) {
         const barY = h * PORTRAIT_TOP - 8;
@@ -1288,7 +1338,7 @@ export default class MainScene extends Scene {
         const leftX = w / 2 - pillW / 2;
         const topY = h * 0.02;
         const pillH = 68;
-        this.prestigeBadge.setPosition(leftX - 8, topY + pillH / 2);
+        this.prestigeBadge.setPosition(leftX + pillW - 10, topY + pillH / 2);
         this.prestigeBadge.setOrigin(1, 0.5);
       }
       if (this.statsClicksText) {
@@ -1337,7 +1387,7 @@ export default class MainScene extends Scene {
     }
     if (this.prestigeBadge) {
       this.prestigeBadge.setPosition(this.balancePillRight + 22, pad + 32);
-      this.prestigeBadge.setOrigin(1, 0.5);
+      this.prestigeBadge.setOrigin(0, 0.5);
     }
     this.bringSoundControlsToTop();
   }

@@ -31,15 +31,35 @@ export default class AchievementScene extends Scene {
     const w = this.cameras.main.width;
     const h = this.cameras.main.height;
     this._isMobile = isMobile();
+    const mobile = this._isMobile;
+    const panelW = mobile
+      ? Math.min(w - 28, 400)
+      : PANEL_WIDTH + 16;
+    const panelH = mobile
+      ? Math.min(h - 30, HEADER_H + Math.floor(h * 0.52) + 20)
+      : HEADER_H + SCROLL_H + 24;
+    const scrollH = mobile
+      ? Math.max(180, panelH - HEADER_H - 24)
+      : SCROLL_H;
+    this._cols = mobile ? 3 : COLS;
+    const gap = mobile ? 8 : CARD_GAP;
+    const usableW = panelW - gap * 2 - 8;
+    this._cardGap = gap;
+    this._cardSize = mobile
+      ? Phaser.Math.Clamp(
+          Math.floor((usableW - gap * (this._cols - 1)) / this._cols),
+          56,
+          80
+        )
+      : CARD_SIZE;
 
-    const startX = w + PANEL_WIDTH / 2 + 40;
-    const endX = w - PANEL_WIDTH / 2 - UIConfig.padding.screen;
+    const startX = w + panelW / 2 + 40;
+    const endX = w - panelW / 2 - UIConfig.padding.screen;
+    this._panelOffscreenX = startX;
 
     this.panelContainer = this.add.container(startX, h / 2);
     this.panelContainer.setScrollFactor(0);
 
-    const panelW = PANEL_WIDTH + 16;
-    const panelH = HEADER_H + SCROLL_H + 24;
     this._panelW = panelW;
     this._panelH = panelH;
     const g = this.add.graphics();
@@ -69,7 +89,7 @@ export default class AchievementScene extends Scene {
     const title = this.add
       .text(0, -panelH / 2 + 36, 'Achievements', {
         ...getTitleStyle(),
-        fontSize: 26,
+        fontSize: mobile ? 22 : 26,
       })
       .setOrigin(0.5, 0.5);
     applyTextPop(title);
@@ -79,7 +99,7 @@ export default class AchievementScene extends Scene {
     this.bonusText = this.add
       .text(0, -panelH / 2 + 68, `Total Achievement Bonus: +${bonusPct}% Income`, {
         ...getTextStyle(),
-        fontSize: 14,
+        fontSize: mobile ? 12 : 14,
         color: UIConfig.colors.primaryButtonHex ?? '#FFB347',
       })
       .setOrigin(0.5, 0.5);
@@ -93,21 +113,21 @@ export default class AchievementScene extends Scene {
     this.achievementList = list;
 
     const unlockedSet = new Set(getUnlockedIds());
-    const rows = Math.ceil(ACHIEVEMENTS.length / COLS);
-    const contentH = rows * (CARD_SIZE + CARD_GAP) + CARD_GAP;
+    const rows = Math.ceil(ACHIEVEMENTS.length / this._cols);
+    const contentH = rows * (this._cardSize + this._cardGap) + this._cardGap;
     this.achievementScrollStartY = list.y;
-    this.achievementMaxScroll = Math.max(0, contentH - SCROLL_H);
+    this.achievementMaxScroll = Math.max(0, contentH - scrollH);
     this.achievementScrollOffset = 0;
 
     let cardIndex = 0;
     for (let row = 0; row < rows; row++) {
-      for (let col = 0; col < COLS; col++) {
+      for (let col = 0; col < this._cols; col++) {
         if (cardIndex >= ACHIEVEMENTS.length) break;
         const a = ACHIEVEMENTS[cardIndex];
         const isUnlocked = unlockedSet.has(a.id);
-        const cardX = -PANEL_WIDTH / 2 + CARD_GAP
-          + (CARD_SIZE + CARD_GAP) * col + CARD_SIZE / 2;
-        const cardY = CARD_GAP + (CARD_SIZE + CARD_GAP) * row + CARD_SIZE / 2;
+        const cardX = -panelW / 2 + this._cardGap
+          + (this._cardSize + this._cardGap) * col + this._cardSize / 2;
+        const cardY = this._cardGap + (this._cardSize + this._cardGap) * row + this._cardSize / 2;
         const card = this.createAchievementCard(a, isUnlocked, cardX, cardY);
         list.add(card);
         cardIndex++;
@@ -151,18 +171,19 @@ export default class AchievementScene extends Scene {
 
   createAchievementCard(achievement, isUnlocked, x, y) {
     const card = this.add.container(x, y);
-    const half = CARD_SIZE / 2;
+    const size = this._cardSize ?? CARD_SIZE;
+    const half = size / 2;
     const borderColor = isUnlocked ? 0x4caf50 : 0x6b5b95;
     const bgColor = isUnlocked ? 0x2d2345 : 0x1e1629;
     const glowG = this.add.graphics();
     if (isUnlocked) {
       glowG.fillStyle(0x4caf50, 0.35);
-      glowG.fillRoundedRect(-half - 4, -half - 4, CARD_SIZE + 8, CARD_SIZE + 8, 10);
+      glowG.fillRoundedRect(-half - 4, -half - 4, size + 8, size + 8, 10);
     }
     glowG.fillStyle(bgColor, 1);
-    glowG.fillRoundedRect(-half, -half, CARD_SIZE, CARD_SIZE, 8);
+    glowG.fillRoundedRect(-half, -half, size, size, 8);
     glowG.lineStyle(3, borderColor, 1);
-    glowG.strokeRoundedRect(-half, -half, CARD_SIZE, CARD_SIZE, 8);
+    glowG.strokeRoundedRect(-half, -half, size, size, 8);
     card.add(glowG);
 
     const icon = this.drawMedalIcon(achievement, isUnlocked);
@@ -172,18 +193,18 @@ export default class AchievementScene extends Scene {
     const nameText = this.add
       .text(0, half - 18, achievement.name, {
         ...getTextStyle(),
-        fontSize: 11,
+        fontSize: this._isMobile ? 10 : 11,
         color: isUnlocked ? '#ffffff' : '#b0a0c0',
         align: 'center',
       })
       .setOrigin(0.5, 0.5);
-    nameText.setWordWrapWidth(CARD_SIZE - 8);
+    nameText.setWordWrapWidth(size - 8);
     card.add(nameText);
 
     if (!isUnlocked) {
       const lockG = this.add.graphics();
       lockG.fillStyle(0x000000, 0.55);
-      lockG.fillRoundedRect(-half, -half, CARD_SIZE, CARD_SIZE, 8);
+      lockG.fillRoundedRect(-half, -half, size, size, 8);
       lockG.fillStyle(0x9e9e9e, 1);
       lockG.fillRect(-8, -14, 16, 12);
       lockG.fillStyle(0x757575, 1);
@@ -191,7 +212,7 @@ export default class AchievementScene extends Scene {
       card.add(lockG);
     }
 
-    const zone = this.add.zone(0, 0, CARD_SIZE, CARD_SIZE).setInteractive();
+    const zone = this.add.zone(0, 0, size, size).setInteractive();
     zone.setOrigin(0.5);
     zone.on('pointerover', () => this.scheduleTooltip(achievement, card));
     zone.on('pointerout', () => this.hideTooltip());
@@ -202,7 +223,7 @@ export default class AchievementScene extends Scene {
     });
     card.add(zone);
 
-    card.setSize(CARD_SIZE, CARD_SIZE);
+    card.setSize(size, size);
     card.achievementData = achievement;
     return card;
   }
@@ -266,7 +287,8 @@ export default class AchievementScene extends Scene {
     bg.lineStyle(2, UIConfig.colors.primaryButton ?? 0xffb347, 1);
     bg.strokeRoundedRect(-bw / 2, -bh / 2, bw, bh, 6);
 
-    const ty = this.achievementList.y + card.y - CARD_SIZE / 2 - 50;
+    const size = this._cardSize ?? CARD_SIZE;
+    const ty = this.achievementList.y + card.y - size / 2 - 50;
     this.tooltip = this.add.container(card.x, ty);
     this.tooltip.setScrollFactor(0);
     this.tooltip.add(bg);
@@ -325,10 +347,9 @@ export default class AchievementScene extends Scene {
   }
 
   close() {
-    const w = this.cameras.main.width;
     this.tweens.add({
       targets: this.panelContainer,
-      x: w + PANEL_WIDTH / 2 + 40,
+      x: this._panelOffscreenX ?? (this.cameras.main.width + this._panelW / 2 + 40),
       duration: SLIDE_DURATION,
       ease: 'Cubic.easeIn',
       onComplete: () => {

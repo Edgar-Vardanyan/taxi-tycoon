@@ -303,7 +303,12 @@ export default class ShopScene extends Scene {
 
   createArcadeButton(x, y, width, height, color, label, callback) {
     const pad = this._isMobile ? (UIConfig.button.hitAreaPadding ?? 12) : 0;
-    const minH = this._isMobile ? (UIConfig.button.minHeightMobile ?? 48) : 0;
+    const compactBatchButton = this._isMobile
+      && width <= 40
+      && /^\d+$/.test(String(label));
+    const minH = this._isMobile && !compactBatchButton
+      ? (UIConfig.button.minHeightMobile ?? 48)
+      : 0;
     const h = minH > 0 && height < minH ? minH : height;
     const rect = new Phaser.Geom.Rectangle(
       -width / 2 - pad,
@@ -363,9 +368,15 @@ export default class ShopScene extends Scene {
     const dims = this._gameW != null
       ? { width: this._gameW, height: this._gameH }
       : null;
-    const fsTitle = dims ? getScaledFontSize(0.028, 13, dims) : 13;
-    const fsBonus = dims ? getScaledFontSize(0.024, 11, dims) : 11;
-    const fsPrice = dims ? getScaledFontSize(0.026, 12, dims) : 12;
+    const fsTitle = this._isMobile
+      ? 11
+      : (dims ? getScaledFontSize(0.028, 13, dims) : 13);
+    const fsBonus = this._isMobile
+      ? 9
+      : (dims ? getScaledFontSize(0.024, 11, dims) : 11);
+    const fsPrice = this._isMobile
+      ? 10
+      : (dims ? getScaledFontSize(0.026, 12, dims) : 12);
     const fsLock = dims ? getScaledFontSize(0.032, 14, dims) : 14;
 
     const level = getUpgradeLevel(id);
@@ -395,7 +406,7 @@ export default class ShopScene extends Scene {
     const barW = cardW - 140;
     const barH = 5;
     const barX = 52;
-    const barY = this._isMobile ? cardH - 74 : cardH - 28;
+    const barY = this._isMobile ? cardH - 66 : cardH - 28;
     const barBg = this.add.graphics();
     barBg.fillStyle(0x000000, 0.5);
     barBg.fillRoundedRect(barX, barY, barW, barH, 2);
@@ -405,7 +416,11 @@ export default class ShopScene extends Scene {
     barFill.fillRoundedRect(barX, barY, barW * progressToNext, barH, 2);
     card.add(barFill);
 
-    const titleText = this.add.text(52, 8, cfg.title, {
+    const maxTitleChars = this._isMobile ? 18 : 30;
+    const titleValue = cfg.title.length > maxTitleChars
+      ? `${cfg.title.slice(0, maxTitleChars - 1)}…`
+      : cfg.title;
+    const titleText = this.add.text(52, this._isMobile ? 6 : 8, titleValue, {
       ...getTextStyle(),
       fontSize: fsTitle,
       color: UIConfig.colors.textPrimary,
@@ -414,7 +429,7 @@ export default class ShopScene extends Scene {
     applyTextPop(titleText);
 
     const bonusText = this.getBonusText(id, level);
-    const bonus = this.add.text(52, 26, bonusText, {
+    const bonus = this.add.text(52, this._isMobile ? 20 : 26, bonusText, {
       ...getTextStyle(),
       fontSize: fsBonus,
       color: UIConfig.colors.textSecondary,
@@ -452,7 +467,7 @@ export default class ShopScene extends Scene {
 
     const priceTxt = this.add.text(
       52,
-      this._isMobile ? cardH - 82 : cardH - 20,
+      this._isMobile ? cardH - 52 : cardH - 20,
       `${formatNumber(price)} AMD`,
       {
         ...getTextStyle(),
@@ -463,9 +478,9 @@ export default class ShopScene extends Scene {
     card.add(priceTxt);
     applyTextPop(priceTxt);
 
-    const btnW = this._isMobile ? 52 : 34;
-    const btnH = this._isMobile ? SHOP_BTN_MIN_HEIGHT : 20;
-    const btnY = this._isMobile ? cardH - 30 - 8 : cardH - 16;
+    const btnW = this._isMobile ? 36 : 34;
+    const btnH = this._isMobile ? 34 : 20;
+    const btnY = this._isMobile ? cardH - 22 : cardH - 16;
     const gap = 4;
     const x100 = cardW - 8 - btnW / 2;
     const x10 = x100 - btnW - gap;
@@ -485,7 +500,7 @@ export default class ShopScene extends Scene {
         String(count),
         () => this.tryBatchBuy(id, card, count)
       );
-      btn.list[1].setFontSize(10);
+      btn.list[1].setFontSize(this._isMobile ? 8 : 10);
       card.add(btn);
       batchButtons.push(btn);
     }
