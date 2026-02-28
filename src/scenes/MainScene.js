@@ -136,6 +136,7 @@ export default class MainScene extends Scene {
     this.createAchievementsButton(w, h);
     this.createShopButton(w, h);
     this.createRewardedButton(w, h);
+    this.bringSoundControlsToTop();
     const vignette = createVignetteSprite(this, w, h);
     this.uiContainer.add(vignette);
     this.createFlashOverlay(w, h);
@@ -578,6 +579,16 @@ export default class MainScene extends Scene {
     );
     btn.list[1].setFontSize(11);
     this.uiContainer.add(btn);
+    this._soundControls = [g, handle, hit, btn];
+    this.bringSoundControlsToTop();
+  }
+
+  bringSoundControlsToTop() {
+    if (!this.uiContainer || !this._soundControls) return;
+    for (let i = 0; i < this._soundControls.length; i++) {
+      const obj = this._soundControls[i];
+      if (obj && obj.active) this.uiContainer.bringToTop(obj);
+    }
   }
 
   createMilestoneBar(w, h) {
@@ -1276,6 +1287,7 @@ export default class MainScene extends Scene {
       if (this.statsPanelBg) this.statsPanelBg.setVisible(false);
       if (this.tickerText) this.tickerText.setVisible(false);
       if (this.tickerBar) this.tickerBar.setVisible(false);
+      this.bringSoundControlsToTop();
       this.refreshHUD();
       return;
     }
@@ -1310,6 +1322,7 @@ export default class MainScene extends Scene {
     if (this._rewardedBtn) {
       this._rewardedBtn.setPosition(w - pad - 55, h - pad - 68 - btnH / 2);
     }
+    this.bringSoundControlsToTop();
   }
 
   createOrientationOverlay() {

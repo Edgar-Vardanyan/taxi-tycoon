@@ -39,6 +39,7 @@ const SLIDE_UP_DURATION = 280;
 const VISIBLE_CARDS_MOBILE = 3.5;
 const CARD_WIDTH_PORTRAIT_RATIO = 0.95;
 const SHOP_BTN_MIN_HEIGHT = 60;
+const SCROLL_DRAG_THRESHOLD = 10;
 
 /** Shop overlay. Neubrutalism Arcade – glass cards, per-card progress bar. */
 export default class ShopScene extends Scene {
@@ -234,15 +235,27 @@ export default class ShopScene extends Scene {
 
     this._scrollPointerDown = false;
     this._scrollLastY = 0;
+    this._scrollStartX = 0;
+    this._scrollStartY = 0;
+    this._isListDragging = false;
     this.input.on('pointerdown', (ptr, x, y) => {
       const inList = y >= panelYEnd + scrollY && y <= panelYEnd + scrollY + scrollHeight;
       if (inList) {
         this._scrollPointerDown = true;
+        this._isListDragging = false;
+        this._scrollStartX = x;
+        this._scrollStartY = y;
         this._scrollLastY = y;
       }
     });
     this.input.on('pointermove', (ptr, x, y) => {
       if (!this._scrollPointerDown || !ptr.isDown) return;
+      const dragDx = x - this._scrollStartX;
+      const dragDy = y - this._scrollStartY;
+      if (!this._isListDragging) {
+        const dist = Math.hypot(dragDx, dragDy);
+        if (dist >= SCROLL_DRAG_THRESHOLD) this._isListDragging = true;
+      }
       const dy = y - this._scrollLastY;
       this._scrollLastY = y;
       this.scrollOffset = Phaser.Math.Clamp(
@@ -252,8 +265,14 @@ export default class ShopScene extends Scene {
       );
       list.y = this.listStartY - this.scrollOffset;
     });
-    this.input.on('pointerup', () => { this._scrollPointerDown = false; });
-    this.input.on('pointerout', () => { this._scrollPointerDown = false; });
+    this.input.on('pointerup', () => {
+      this._scrollPointerDown = false;
+      this.time.delayedCall(0, () => { this._isListDragging = false; });
+    });
+    this.input.on('pointerout', () => {
+      this._scrollPointerDown = false;
+      this._isListDragging = false;
+    });
 
     this.add.existing(panelContainer);
 
@@ -317,10 +336,13 @@ export default class ShopScene extends Scene {
     const scaleDown = UIConfig.button.scaleDown ?? 0.95;
     container.on('pointerdown', () => {
       container.setScale(scaleDown);
+    });
+    container.on('pointerup', () => {
+      container.setScale(1);
+      if (this._isListDragging) return;
       if (this._isMobile) vibrate(10);
       callback();
     });
-    container.on('pointerup', () => container.setScale(1));
     container.on('pointerout', () => container.setScale(1));
     return container;
   }
@@ -481,9 +503,12 @@ export default class ShopScene extends Scene {
     shadowG.on('pointerdown', () => {
       if (isLocked) return;
       card.setScale(0.98);
+    });
+    shadowG.on('pointerup', () => {
+      card.setScale(1);
+      if (isLocked || this._isListDragging) return;
       this.tryBuy(id, card);
     });
-    shadowG.on('pointerup', () => card.setScale(1));
     shadowG.on('pointerout', () => card.setScale(1));
 
     card.cardData = {
