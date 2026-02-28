@@ -238,26 +238,34 @@ export default class ShopScene extends Scene {
     this._scrollStartX = 0;
     this._scrollStartY = 0;
     this._isListDragging = false;
-    this.input.on('pointerdown', (ptr, x, y) => {
-      const inList = y >= panelYEnd + scrollY && y <= panelYEnd + scrollY + scrollHeight;
+    this.input.on('pointerdown', (ptr) => {
+      const px = ptr.x;
+      const py = ptr.y;
+      const inListX =
+        px >= panelX - listWidth / 2 && px <= panelX + listWidth / 2;
+      const inListY =
+        py >= panelYEnd + scrollY && py <= panelYEnd + scrollY + scrollHeight;
+      const inList = inListX && inListY;
       if (inList) {
         this._scrollPointerDown = true;
         this._isListDragging = false;
-        this._scrollStartX = x;
-        this._scrollStartY = y;
-        this._scrollLastY = y;
+        this._scrollStartX = px;
+        this._scrollStartY = py;
+        this._scrollLastY = py;
       }
     });
-    this.input.on('pointermove', (ptr, x, y) => {
+    this.input.on('pointermove', (ptr) => {
       if (!this._scrollPointerDown || !ptr.isDown) return;
-      const dragDx = x - this._scrollStartX;
-      const dragDy = y - this._scrollStartY;
+      const px = ptr.x;
+      const py = ptr.y;
+      const dragDx = px - this._scrollStartX;
+      const dragDy = py - this._scrollStartY;
       if (!this._isListDragging) {
         const dist = Math.hypot(dragDx, dragDy);
         if (dist >= SCROLL_DRAG_THRESHOLD) this._isListDragging = true;
       }
-      const dy = y - this._scrollLastY;
-      this._scrollLastY = y;
+      const dy = py - this._scrollLastY;
+      this._scrollLastY = py;
       this.scrollOffset = Phaser.Math.Clamp(
         this.scrollOffset - dy,
         0,

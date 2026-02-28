@@ -388,7 +388,7 @@ export default class MainScene extends Scene {
     const fsSmall = getScaledFontSize(0.032, 16, dims);
 
     const pillW = portrait ? Math.min(w * 0.9, 400) : 300;
-    const pillH = portrait ? 48 : 56;
+    const pillH = portrait ? 68 : 56;
     const topY = portrait ? h * 0.02 : pad + 4;
     const leftX = portrait ? w / 2 - pillW / 2 : pad + 4;
 
@@ -426,8 +426,11 @@ export default class MainScene extends Scene {
       ease: 'Linear',
     });
 
+    const balanceY = topY + (portrait ? 8 : 18);
+    const incomeY = portrait ? balanceY + fs + 6 : topY + 42;
+
     this.balanceText = this.add
-      .text(leftX + 50, topY + (portrait ? 8 : 18), `Balance: ${formatNumber(getMoney())} AMD`, {
+      .text(leftX + 50, balanceY, `Balance: ${formatNumber(getMoney())} AMD`, {
         ...getTextStyle(),
         fontSize: fs,
         color: UIConfig.colors.primaryButtonHex,
@@ -440,7 +443,7 @@ export default class MainScene extends Scene {
     this.balanceTextLeft = leftX + 50;
 
     this.incomeText = this.add
-      .text(leftX + 50, topY + (portrait ? 28 : 42), `${formatNumber(calculateIdleIncome())} AMD/sec`, {
+      .text(leftX + 50, incomeY, `${formatNumber(calculateIdleIncome())} AMD/sec`, {
         ...getTextStyle(),
         fontSize: fsSmall,
         color: UIConfig.colors.textSecondary,
@@ -452,13 +455,15 @@ export default class MainScene extends Scene {
 
     const licenses = getGoldenLicenses();
     if (licenses > 0) {
+      const badgeX = portrait ? leftX - 8 : leftX + pillW + 10;
+      const badgeOriginX = 1;
       this.prestigeBadge = this.add
-        .text(leftX + pillW + 10, topY + pillH / 2, `★ ${licenses}`, {
+        .text(badgeX, topY + pillH / 2, `★ ${licenses}`, {
           ...getTextStyle(),
           fontSize: fsSmall,
           color: '#FFD700',
         })
-        .setOrigin(0, 0.5)
+        .setOrigin(badgeOriginX, 0.5)
         .setScrollFactor(0);
       this.uiContainer.add(this.prestigeBadge);
     }
@@ -498,7 +503,7 @@ export default class MainScene extends Scene {
   createSoundControls(w, h, pad) {
     const portrait = this._isPortrait;
     const padRight = w - pad;
-    const cy = portrait ? Math.floor(h * PORTRAIT_TOP + 26) : pad + 28;
+    const cy = portrait ? Math.floor(h * PORTRAIT_TOP + 58) : pad + 28;
     const trackW = 72;
     const trackH = 10;
     const btnW = 72;
@@ -1278,6 +1283,14 @@ export default class MainScene extends Scene {
         this.milestoneBar.label.setY(barY - 2);
         this.milestoneBar.counterText.setY(barY + 4);
       }
+      if (this.prestigeBadge) {
+        const pillW = Math.min(w * 0.9, 400);
+        const leftX = w / 2 - pillW / 2;
+        const topY = h * 0.02;
+        const pillH = 68;
+        this.prestigeBadge.setPosition(leftX - 8, topY + pillH / 2);
+        this.prestigeBadge.setOrigin(1, 0.5);
+      }
       if (this.statsClicksText) {
         this.statsClicksText.setVisible(false);
         this.statsUpgradesText.setVisible(false);
@@ -1321,6 +1334,10 @@ export default class MainScene extends Scene {
     }
     if (this._rewardedBtn) {
       this._rewardedBtn.setPosition(w - pad - 55, h - pad - 68 - btnH / 2);
+    }
+    if (this.prestigeBadge) {
+      this.prestigeBadge.setPosition(this.balancePillRight + 22, pad + 32);
+      this.prestigeBadge.setOrigin(1, 0.5);
     }
     this.bringSoundControlsToTop();
   }
